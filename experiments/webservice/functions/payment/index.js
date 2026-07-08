@@ -1,5 +1,6 @@
 const lib = require('@befaas/lib')
 const valid = require('card-validator')
+const { verifyJWT } = require('./auth');
 
 function sanitizeCreditCard (card) {
   return card.replace(/[^0-9]/g, '')
@@ -34,11 +35,30 @@ function getTransactionId () {
  *   "transactionId": "x1234b"
  *  }
  */
-module.exports = lib.serverless.rpcHandler(request => {
+async function handle(event, ctx) {
+  // Verify JWT token
+  if (!ctx.authPayload) {
+    let isValid;
+    try {
+      isValid = await verifyJWT(event, ctx.contextId, ctx.xPair);
+    } catch (err) {
+      if (err.isAuthTimeout) {
+        return { error: 'AuthTimeout', statusCode: 424 };
+      }
+      throw err;
+    }
+
+    if (!isValid) {
+      return { error: 'Unauthorized' };
+    }
+  }
+
   const ok = valid.number(
-    sanitizeCreditCard(request.creditCard.creditCardNumber)
+    sanitizeCreditCard(event.creditCard.creditCardNumber)
   ).isPotentiallyValid
   return ok
     ? { transactionId: getTransactionId() }
     : { error: 'credit card is invalid' }
-})
+}
+
+module.exports = handle

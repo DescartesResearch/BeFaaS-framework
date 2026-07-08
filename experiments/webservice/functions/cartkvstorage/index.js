@@ -1,5 +1,6 @@
 const lib = require('@befaas/lib')
 const _ = require('lodash')
+const { verifyJWT } = require('./auth')
 
 /**
  *
@@ -34,46 +35,61 @@ const _ = require('lodash')
  * Example Response (empty): { }
  *
  */
-
-module.exports = lib.serverless.rpcHandler(
-  { db: 'redis' },
-  async (event, ctx) => {
-    const operation = event.operation.toLowerCase()
-    if (!['add', 'get', 'empty'].includes(operation)) {
-      return { error: 'Invalid operation.' }
-    }
-    const userId = event.userId
-    if (!userId) {
-      return { error: 'A non-empty user ID has to be specified.' }
-    }
-
-    if (operation === 'empty') {
-      await ctx.db.set(userId, null)
-      return {}
-    }
-
-    const cartItems = (await ctx.db.get(userId)) || []
-    if (operation === 'get') {
-      return { items: cartItems }
-    }
-
-    if (operation === 'add') {
-      if (!_.isString(event.itemId) || !_.isNumber(event.quantity)) {
-        return { error: 'itemId or quantity is missing' }
+async function handle (event, ctx) {
+  // Verify JWT token
+  if (!ctx.authPayload) {
+    let isValid
+    try {
+      isValid = await verifyJWT(event, ctx.contextId, ctx.xPair)
+    } catch (err) {
+      if (err.isAuthTimeout) {
+        return { error: 'AuthTimeout', statusCode: 424 }
       }
-      const pos = _.findIndex(cartItems, ['productId', event.itemId])
-      if (pos !== -1) {
-        cartItems[pos].quantity += event.quantity
-      } else {
-        cartItems.push({
-          productId: event.itemId,
-          quantity: event.quantity
-        })
-      }
-      await ctx.db.set(userId, cartItems)
-      return {}
+      throw err
     }
 
+    if (!isValid) {
+      return { error: 'Unauthorized' }
+    }
+  }
+
+  const operation = event.operation.toLowerCase()
+  if (!['add', 'get', 'empty'].includes(operation)) {
+    return { error: 'Invalid operation.' }
+  }
+  const userId = event.userId
+  if (!userId) {
+    return { error: 'A non-empty user ID has to be specified.' }
+  }
+
+  if (operation === 'empty') {
+    await ctx.db.set(userId, null)
     return {}
   }
-)
+
+  const cartItems = (await ctx.db.get(userId)) || []
+  if (operation === 'get') {
+    return { items: cartItems }
+  }
+
+  if (operation === 'add') {
+    if (!_.isString(event.itemId) || !_.isNumber(event.quantity)) {
+      return { error: 'itemId or quantity is missing' }
+    }
+    const pos = _.findIndex(cartItems, ['productId', event.itemId])
+    if (pos !== -1) {
+      cartItems[pos].quantity += event.quantity
+    } else {
+      cartItems.push({
+        productId: event.itemId,
+        quantity: event.quantity
+      })
+    }
+    await ctx.db.set(userId, cartItems)
+    return {}
+  }
+
+  return {}
+}
+
+module.exports = handle

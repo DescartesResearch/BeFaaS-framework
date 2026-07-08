@@ -14,6 +14,11 @@ output "deployment_id" {
   value = random_string.deployment_id.result
 }
 
+output "run_id" {
+  description = "Unique identifier for this experiment run"
+  value       = var.run_id != "" ? var.run_id : random_string.deployment_id.result
+}
+
 output "aws_fns" {
   value = local.aws_fns
 }

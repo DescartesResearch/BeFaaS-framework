@@ -1,19 +1,23 @@
 FROM node:20-alpine
 
-RUN npm i -g artillery@2.0.0-31 --allow-root --unsafe-perm=true
+RUN npm i -g artillery@latest --allow-root --unsafe-perm=true
 
 WORKDIR /workload
 
-ENV PROCESSOR_DIR /workload
-# ADD logger.js ./
+ADD package.json ./
+RUN npm install --production
+RUN npm install bcryptjs
+
+ENV PROCESSOR_DIR=/workload
+
 ADD build/index.js ./logger.js
+ADD authConfig.js ./authConfig.js
+ADD preregister-redis.js ./
 
 ADD run.sh ./
 ADD variables.json ./
 ADD workload.yml ./
-ADD usernames.csv ./
 ADD users.csv ./
-ADD users_small.csv ./
 ADD image-ambulance.jpg ./
 ADD image-noambulance.jpg ./
 

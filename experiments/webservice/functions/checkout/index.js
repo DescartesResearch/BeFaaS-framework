@@ -1,4 +1,5 @@
 const lib = require('@befaas/lib')
+const { verifyJWT } = require('./auth')
 
 /**
  *
@@ -94,12 +95,29 @@ function scalePrice (price, scalar) {
   }
 }
 
-module.exports = lib.serverless.rpcHandler(async (request, ctx) => {
+async function handle (event, ctx) {
+  // Verify JWT token
+  if (!ctx.authPayload) {
+    let isValid
+    try {
+      isValid = await verifyJWT(event, ctx.contextId, ctx.xPair)
+    } catch (err) {
+      if (err.isAuthTimeout) {
+        return { error: 'AuthTimeout', statusCode: 424 }
+      }
+      throw err
+    }
+
+    if (!isValid) {
+      return { error: 'Unauthorized' }
+    }
+  }
+
   const cart = await ctx.call('getcart', {
-    userId: request.userId
+    userId: event.userId
   })
   let totalOrderPrice = {
-    currencyCode: request.userCurrency,
+    currencyCode: event.userCurrency,
     units: 0,
     nanos: 0
   }
@@ -115,7 +133,7 @@ module.exports = lib.serverless.rpcHandler(async (request, ctx) => {
       const productPrice = await convertPrice(
         ctx,
         product.priceUsd,
-        request.userCurrency
+        event.userCurrency
       )
       cartItems.push({
         item: item,
@@ -130,7 +148,7 @@ module.exports = lib.serverless.rpcHandler(async (request, ctx) => {
 
   const shipmentPrice = (
     await ctx.call('shipmentquote', {
-      address: request.address,
+      address: event.address,
       items: cart.items
     })
   ).costUsd
@@ -138,12 +156,12 @@ module.exports = lib.serverless.rpcHandler(async (request, ctx) => {
   const convertedShipmentPrice = await convertPrice(
     ctx,
     shipmentPrice,
-    request.userCurrency
+    event.userCurrency
   )
   totalOrderPrice = await addPrices(totalOrderPrice, convertedShipmentPrice)
 
   const { transactionId } = await ctx.call('payment', {
-    creditCard: request.creditCard,
+    creditCard: event.creditCard,
     amount: totalOrderPrice
   })
 
@@ -151,7 +169,7 @@ module.exports = lib.serverless.rpcHandler(async (request, ctx) => {
 
   const trackingId = (
     await ctx.call('shiporder', {
-      address: request.address,
+      address: event.address,
       items: cart.items
     })
   ).id
@@ -160,15 +178,17 @@ module.exports = lib.serverless.rpcHandler(async (request, ctx) => {
     shippingTrackingId: trackingId,
     shippingCost: convertedShipmentPrice,
     totalCost: totalOrderPrice,
-    shippingAddress: request.address,
+    shippingAddress: event.address,
     items: cartItems
   }
   await ctx.call('email', {
-    email: request.email,
+    email: event.email,
     order: orderResult
   })
   await ctx.call('emptycart', {
-    userId: request.userId
+    userId: event.userId
   })
   return { order: orderResult }
-})
+}
+
+module.exports = handle

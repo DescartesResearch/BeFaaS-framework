@@ -1,3 +1,14 @@
+terraform {
+  required_version = ">= 1.0"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+}
+
 data "terraform_remote_state" "exp" {
   backend = "local"
 
@@ -58,12 +69,20 @@ resource "aws_instance" "redis" {
 
     inline = [
       "sudo apt-get update",
-      "curl -sSL https://get.docker.com/ | sh > installDocker.log",
+      "sudo apt-get install -y docker.io",
+      "sudo systemctl start docker",
+      "sudo systemctl enable docker",
       "sudo docker run --name befaas-redis -v redisData:/data -p 6379:6379 -d redis redis-server --appendonly yes --requirepass ${random_string.redispass.result}"
     ]
   }
+
 }
 
 output "REDIS_ENDPOINT" {
   value = "redis://default:${random_string.redispass.result}@${aws_instance.redis.public_ip}:6379"
+}
+
+output "redis_instance_id" {
+  value = aws_instance.redis.id
+  description = "The ID of the Redis EC2 instance"
 }

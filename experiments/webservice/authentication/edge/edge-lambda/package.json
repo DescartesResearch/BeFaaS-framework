@@ -1,0 +1,10 @@
+{
+  "name": "edge-lambda",
+  "version": "1.0.0",
+  "description": "Lambda@Edge function for edge-based authentication token transformation",
+  "main": "index.js",
+  "scripts": {
+    "build": "mkdir -p dist && cp index.js dist/ && cd dist && zip -r edge-lambda.zip index.js"
+  },
+  "dependencies": {}
+}

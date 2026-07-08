@@ -48,8 +48,10 @@ function validateEmail (email) {
  *
  * Response: { }
  */
-module.exports = lib.serverless.rpcHandler(request => {
+async function handle (event, ctx) {
   // Taken from the Chromium project:
-  const ok = validateEmail(request.email)
+  const ok = validateEmail(event.email)
   return ok ? {} : { error: 'email is invalid' }
-})
+}
+
+module.exports = handle

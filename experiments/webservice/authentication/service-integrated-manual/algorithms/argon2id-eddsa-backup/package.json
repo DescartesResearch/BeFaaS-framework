@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "jose": "^5.2.0",
+    "hash-wasm": "^4.11.0"
+  }
+}

@@ -26,7 +26,7 @@ const { products } = require('../../productcatalog/products')
  *
  */
 
-module.exports = lib.serverless.rpcHandler(event => {
+async function handle (event, ctx) {
   const query = event.query.toLowerCase()
   const results = []
   for (const key in products) {
@@ -39,4 +39,6 @@ module.exports = lib.serverless.rpcHandler(event => {
     }
   }
   return { results: results }
-})
+}
+
+module.exports = handle

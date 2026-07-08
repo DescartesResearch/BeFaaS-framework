@@ -25,10 +25,14 @@ fi
 
 exp_json="${exp_dir}/${exp_json}"
 
-workload_config_name=$(jq -r '.services.workload.config' "$exp_json")
-if [ "$workload_config_name" == "null" ]; then
-    echo -e "Workload config not defined (services.workload.config)\n" | chalk red
-    exit 1
+if [[ -n "${3:-}" ]]; then
+    workload_config_name="$3"
+else
+    workload_config_name=$(jq -r '.services.workload.config' "$exp_json")
+    if [ "$workload_config_name" == "null" ]; then
+        echo -e "Workload config not defined (services.workload.config)\n" | chalk red
+        exit 1
+    fi
 fi
 
 workload_config="${exp_dir}/${workload_config_name}"
@@ -41,20 +45,77 @@ cd -
 echo "Found deployment id: $deployment_id" | chalk blue
 
 echo "Getting endpoints..." | chalk blue
-states=""
-for provider in $(jq -r '[.program.functions[].provider] | unique | .[]' $exp_json); do
-  cd infrastructure/${provider}/endpoint
-  states="${states}$(terraform output --json)"
-  cd -
-done
 
-endpoints=$(echo $states | jq -sc 'add | with_entries(select(.key | endswith("ENDPOINT"))) | map_values(.value)')
+architecture="${ARCHITECTURE:-faas}"
+echo "Architecture: $architecture" | chalk blue
+
+states=""
+if [[ "$architecture" == "microservices" ]]; then
+  cd infrastructure/microservices/aws
+  alb_dns=$(terraform output -raw alb_dns_name 2>/dev/null || echo "")
+  cd -
+  if [[ -n "$alb_dns" ]]; then
+    base_url="http://${alb_dns}"
+    states="{\"AWS_MICROSERVICES_ENDPOINT\": \"${base_url}\"}"
+    echo "Using microservices ALB endpoint: $base_url" | chalk green
+  else
+    echo "ERROR: Could not get ALB DNS name from microservices infrastructure" | chalk red
+    exit 1
+  fi
+elif [[ "$architecture" == "monolith" ]]; then
+  cd infrastructure/monolith/aws
+  alb_dns=$(terraform output -raw alb_dns_name 2>/dev/null || echo "")
+  cd -
+  if [[ -n "$alb_dns" ]]; then
+    base_url="http://${alb_dns}"
+    states="{\"AWS_MONOLITH_ENDPOINT\": \"${base_url}\"}"
+    echo "Using monolith ALB endpoint: $base_url" | chalk green
+  else
+    echo "ERROR: Could not get ALB DNS name from monolith infrastructure" | chalk red
+    exit 1
+  fi
+else
+  for provider in $(jq -r '[.program.functions[].provider] | unique | .[]' $exp_json); do
+    cd infrastructure/${provider}/endpoint
+    states="${states}$(terraform output --json)"
+    cd -
+  done
+fi
+
+if [[ -f ".edge_cloudfront_url" ]]; then
+  cloudfront_url=$(cat .edge_cloudfront_url)
+  echo "Edge auth detected - overriding endpoint with CloudFront: $cloudfront_url" | chalk green
+  if [[ "$architecture" == "microservices" ]]; then
+    states="{\"AWS_MICROSERVICES_ENDPOINT\": \"${cloudfront_url}\"}"
+  elif [[ "$architecture" == "monolith" ]]; then
+    states="{\"AWS_MONOLITH_ENDPOINT\": \"${cloudfront_url}\"}"
+  else
+    states="{\"AWS_LAMBDA_ENDPOINT\": {\"value\": \"${cloudfront_url}\"}}"
+  fi
+fi
+
+if [[ "$architecture" == "microservices" || "$architecture" == "monolith" ]]; then
+  endpoints=$(echo $states | jq -sc 'add | with_entries(select(.key | endswith("ENDPOINT")))')
+else
+  endpoints=$(echo $states | jq -sc 'add | with_entries(select(.key | endswith("ENDPOINT"))) | map_values(.value)')
+fi
 
 echo "Matching endpoints..." | chalk blue
 var_json="{}"
 for fname in $(jq -r '.program.functions | keys[]' "$exp_json"); do
   provider=$(jq -r --arg f $fname '.program.functions[$f].provider' "$exp_json")
-  f_ep=$(echo $endpoints | jq -r --arg p $provider 'with_entries(select(.key | ascii_downcase | startswith($p))) | to_entries[0].value')/$fname
+  base_ep=$(echo $endpoints | jq -r --arg p $provider 'with_entries(select(.key | ascii_downcase | startswith($p))) | to_entries[0].value')
+
+  if [[ "$architecture" == "microservices" || "$architecture" == "monolith" ]]; then
+    if [[ "$fname" == "frontend" ]]; then
+      f_ep="${base_ep}"
+    else
+      f_ep="${base_ep}/api/${fname}"
+    fi
+  else
+    f_ep="${base_ep}/${fname}"
+  fi
+
   echo "Matched $fname endpoint: $f_ep" | chalk blue
   var_json=`echo $var_json | jq ". + {$fname: [\"$f_ep\"]}"`
 done
@@ -100,7 +161,7 @@ echo "Compiling logger.js" | chalk blue
 npx ncc build artillery/logger.js -o artillery/build
 
 echo "Creating docker image..." | chalk blue
-docker build -t befaas/artillery artillery/
+docker build --platform linux/amd64 -t befaas/artillery artillery/
 
 echo "Cleaning up build files" | chalk blue
 rm -rf artillery/build
@@ -111,7 +172,16 @@ docker save befaas/artillery:latest | gzip > artillery/image.tar.gz
 echo "Deploying workload..." | chalk blue
 cd infrastructure/services/workload
 terraform init
-terraform apply -auto-approve | tee ../../../artillery/workload-deploy.log
+
+auth_mode="${AUTH_MODE:-none}"
+algorithm="${ALGORITHM:-argon2id-eddsa}"
+echo "Auth mode: $auth_mode" | chalk blue
+echo "Algorithm: $algorithm" | chalk blue
+terraform apply -auto-approve -var="auth_mode=$auth_mode" -var="algorithm=$algorithm" | tee ../../../artillery/workload-deploy.log
+
+drain_timeout="${DRAIN_TIMEOUT:-30}"
+echo "Waiting ${drain_timeout}s for in-flight requests to complete..." | chalk blue
+sleep "$drain_timeout"
 
 echo "Destroying workload instance..." | chalk blue
 terraform destroy -auto-approve

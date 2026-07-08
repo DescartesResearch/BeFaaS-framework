@@ -1,0 +1,13 @@
+{
+  "name": "befaas-artillery-processor",
+  "version": "1.0.0",
+  "description": "Artillery processor for BeFaaS benchmarks",
+  "main": "logger.js",
+  "dependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "^3.0.0",
+    "@befaas/lib": "^8.24.3",
+    "bcryptjs": "^3.0.3",
+    "hash-wasm": "^4.11.0",
+    "js-yaml": "^4.1.0"
+  }
+}

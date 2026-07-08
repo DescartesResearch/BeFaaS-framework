@@ -13,7 +13,7 @@
     <header>
         <div class="navbar navbar-dark bg-dark box-shadow">
             <div class="container d-flex">
-                <a href="../" class="navbar-brand d-flex align-items-center">
+                <a href=".." class="navbar-brand d-flex align-items-center">
                   Webshop Demo
                 </a>
                 <ul class="nav justify-content-end">
@@ -41,8 +41,15 @@
                 <% } else { %>
                   <form class="form-inline ml-auto ml-xs-0" method="post" action="../setUser" id="login_form">
                     <input class="form-control mr-2" type="text" name="userName" placeholder="User Name">
-                    <button class="btn btn-outline-primary my-2 my-sm-0" type="submit" 
+                    <input class="form-control mr-2" type="password" name="password" placeholder="Password">
+                    <button class="btn btn-outline-primary my-2 my-sm-0" type="submit"
                       onchange="document.getElementById('login_form').submit();">Login</button>
+                  </form>
+                  <form class="form-inline ml-2" method="post" action="../register" id="register_form">
+                    <input class="form-control mr-2" type="text" name="userName" placeholder="User Name">
+                    <input class="form-control mr-2" type="password" name="password" placeholder="Password">
+                    <button class="btn btn-outline-success my-2 my-sm-0" type="submit"
+                      onchange="document.getElementById('register_form').submit();">Register</button>
                   </form>
                 <% } %>
                 </ul>

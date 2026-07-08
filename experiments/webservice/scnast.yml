@@ -1,0 +1,184 @@
+
+config:
+  target: ' '
+  http:
+    timeout: 30
+  phases:
+    - name: 'Warm-up'
+      duration: 300
+      arrivalRate: 1
+      rampTo: 5
+    - name: 'Baseline'
+      duration: 300
+      arrivalRate: 5
+    - name: 'Morning rush'
+      duration: 600
+      arrivalRate: 5
+      rampTo: 50
+    - name: 'Stabilization'
+      duration: 1200
+      arrivalRate: 50
+    - name: 'Flash Crowd'
+      duration: 120
+      arrivalRate: 50
+      rampTo: 200
+    - name: 'Step Down'
+      duration: 120
+      arrivalRate: 200
+      rampTo: 5
+    - name: 'Cool-down'
+      duration: 780
+      arrivalRate: 5
+  processor: '{{ $processEnvironment.PROCESSOR_DIR }}/logger.js'
+
+  payload:
+    path: 'users.csv'
+    fields:
+      - 'userName'
+      - 'password'
+    order: 'sequence'
+  variables:
+    product:
+      - 'QWERTY'
+      - 'EASYSTOOL'
+      - 'REFLECTXXX'
+
+scenarios:
+  - name: 'Anonymous Browse Flow'
+    weight: 75
+    beforeScenario: 'beforeScenario'
+    flow:
+      - get:
+          name: 'load homepage'
+          url: '{{ frontend }}/'
+          beforeRequest: 'beforeAnonymousRequest'
+          afterResponse: 'afterAnonymousResponse'
+      - loop:
+          - get:
+              name: 'view product'
+              url: '{{ frontend }}/product/{{ product }}'
+              beforeRequest: 'beforeAnonymousRequest'
+              afterResponse: 'afterAnonymousResponse'
+          - think: 2
+        count: 3
+  - name: 'Authenticated Session Flow'
+    weight: 21.5
+    beforeScenario: 'beforeScenario'
+    flow:
+      - post:
+          name: 'login'
+          url: '{{ frontend }}/setUser'
+          json:
+            userName: '{{ userName }}'
+            password: '{{ password }}'
+          headers:
+            Accept: 'application/json'
+          capture:
+            - json: '$.accessToken'
+              as: 'token'
+          expect:
+            - statusCode: 200
+          followRedirect: false
+          beforeRequest: 'beforeAuthRequest'
+          afterResponse: 'afterAuthResponse'
+      - get:
+          name: 'load homepage'
+          url: '{{ frontend }}/'
+          headers:
+            Authorization: 'Bearer {{ token }}'
+          beforeRequest: 'beforeAuthRequest'
+          afterResponse: 'afterAuthResponse'
+      - loop:
+          - get:
+              name: 'view product'
+              url: '{{ frontend }}/product/{{ product }}'
+              headers:
+                Authorization: 'Bearer {{ token }}'
+              beforeRequest: 'beforeAuthRequest'
+              afterResponse: 'afterAuthResponse'
+              expect:
+                - statusCode: 200
+          - post:
+              name: 'add to cart'
+              url: '{{ frontend }}/addCartItem'
+              json:
+                productId: '{{ product }}'
+                quantity: 1
+              headers:
+                Authorization: 'Bearer {{ token }}'
+                Accept: 'application/json'
+              beforeRequest: 'beforeAuthRequest'
+              afterResponse: 'afterAuthResponse'
+              expect:
+                - statusCode: 200
+        count: 2
+      - get:
+          url: '{{ frontend }}/cart'
+          headers:
+            Authorization: 'Bearer {{ token }}'
+          expect:
+            - statusCode: 200
+          beforeRequest: 'beforeAuthRequest'
+          afterResponse: 'afterAuthResponse'
+      - post:
+          name: 'checkout'
+          headers:
+            Authorization: 'Bearer {{ token }}'
+          url: '{{ frontend }}/checkout'
+          followRedirect: false
+          form:
+            email: 'blubb@blubbmail.com'
+            street_address: 'awesome street'
+            zip_code: '12362'
+            city: 'nope city'
+            state: 'NY'
+            country: 'Germany GmbH'
+            credit_card_number: '4432-8015-6152-0454'
+            credit_card_expiration_month: '1'
+            credit_card_expiration_year: '2029'
+            credit_card_cvv: '123'
+          beforeRequest: 'beforeAuthRequest'
+          afterResponse: 'afterAuthResponse'
+          expect:
+            - statusCode: 200
+  - name: 'Failed Auth - Missing Token'
+    weight: 0.5
+    beforeScenario: 'beforeScenario'
+    flow:
+      - get:
+          name: 'access protected resource without token'
+          url: '{{ frontend }}/cart'
+          beforeRequest: 'beforeFailedAuthRequest'
+          afterResponse: 'afterFailedAuthResponse'
+          expect:
+            - statusCode: 401
+  - name: 'Failed Auth - Wrong login'
+    weight: 2
+    beforeScenario: 'beforeScenario'
+    flow:
+      - post:
+          name: 'login'
+          url: '{{ frontend }}/setUser'
+          json:
+            userName: '{{ userName }}'
+            password: 'WrongPassword :)'
+          headers:
+            Accept: 'application/json'
+          expect:
+            - statusCode: 401
+          followRedirect: false
+          beforeRequest: 'beforeFailedAuthRequest'
+          afterResponse: 'afterFailedAuthResponse'
+  - name: 'Failed Auth - Expired Token'
+    weight: 1
+    beforeScenario: 'beforeScenario'
+    flow:
+      - get:
+          name: 'access protected resource with expired token'
+          url: '{{ frontend }}/cart'
+          headers:
+            Authorization: 'Bearer {{ expiredToken }}'
+          beforeRequest: 'beforeFailedAuthRequest'
+          afterResponse: 'afterFailedAuthResponse'
+          expect:
+            - statusCode: 401

@@ -21,5 +21,14 @@ build
 terraform-provider-*
 .openwhisk
 analysis/
+!scripts/analysis/
 .suppress_notice
 /.idea
+experiments/webservice/authentication/edge/edge-lambda/dist/
+.DS_Store
+__pycache__/
+*.pyc
+.env
+scripts/.env
+/scripts/results/
+*.hcl

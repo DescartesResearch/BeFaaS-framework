@@ -1,4 +1,4 @@
-const lib = require('@befaas/lib')
+const { verifyJWT } = require('./auth');
 
 /**
  *
@@ -16,7 +16,24 @@ const lib = require('@befaas/lib')
  *
  */
 
-module.exports = lib.serverless.rpcHandler(async (event, ctx) => {
+async function handle(event, ctx) {
+  // Verify JWT token
+  if (!ctx.authPayload) {
+    let isValid;
+    try {
+      isValid = await verifyJWT(event, ctx.contextId, ctx.xPair);
+    } catch (err) {
+      if (err.isAuthTimeout) {
+        return { error: 'AuthTimeout', statusCode: 424 };
+      }
+      throw err;
+    }
+
+    if (!isValid) {
+      return { error: 'Unauthorized' };
+    }
+  }
+
   if (!event.userId || !event.item) {
     return { error: 'Wrong input format.' }
   }
@@ -29,4 +46,6 @@ module.exports = lib.serverless.rpcHandler(async (event, ctx) => {
     itemId: event.item.productId,
     quantity: event.item.quantity
   })
-})
+}
+
+module.exports = handle

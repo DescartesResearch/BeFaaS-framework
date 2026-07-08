@@ -40,7 +40,7 @@ function calculateShippingCost (cart) {
  *   }
  * }
  */
-module.exports = lib.serverless.rpcHandler(event => {
+async function handle (event, ctx) {
   // calculates shipping cost
   const cart = event.items
   let shippingCost = 0
@@ -55,4 +55,6 @@ module.exports = lib.serverless.rpcHandler(event => {
       nanos: 0
     }
   }
-})
+}
+
+module.exports = handle

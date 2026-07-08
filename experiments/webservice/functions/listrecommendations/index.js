@@ -16,7 +16,7 @@ const _ = require('lodash')
  *
  */
 
-module.exports = lib.serverless.rpcHandler(async (event, ctx) => {
+async function handle(event, ctx) {
   const requestedIDs = event.productIds
   if (!requestedIDs) {
     return { error: 'Wrong payload.' }
@@ -39,4 +39,6 @@ module.exports = lib.serverless.rpcHandler(async (event, ctx) => {
 
   // We always want to have at most 7 recommendations
   return { productIds: _.slice(suitableIDs, 0, 7) }
-})
+}
+
+module.exports = handle

@@ -80,9 +80,11 @@ const ads = [
 
 const numAds = 2
 
-module.exports = lib.serverless.rpcHandler(event => {
+async function handle(event, ctx) {
   // gets numAds by shuffeling the ad-array and then picks the first numAds elements out of the result
   const shownAds = ads.sort(() => 0.5 - Math.random()).slice(0, numAds)
 
   return { ads: shownAds }
-})
+}
+
+module.exports = handle

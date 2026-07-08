@@ -2,6 +2,18 @@
 
 set -euo pipefail
 
+# Check if graphviz is installed
+if ! command -v dot &> /dev/null; then
+    echo "Error: graphviz is not installed. Please install it first:" | chalk red
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        echo "  brew install graphviz" | chalk yellow
+    elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        echo "  sudo apt-get install graphviz  # Debian/Ubuntu" | chalk yellow
+        echo "  sudo yum install graphviz      # RedHat/CentOS" | chalk yellow
+    fi
+    exit 1
+fi
+
 if [ ! -z ${BASH_SOURCE} ]; then
   SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 else

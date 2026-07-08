@@ -24,7 +24,7 @@ locals {
   fns           = data.terraform_remote_state.exp.outputs.aws_fns
   fns_async     = data.terraform_remote_state.exp.outputs.aws_fns_async
 
-  gateway = data.terraform_remote_state.endpoint.outputs.aws_api_gateway_rest_api.execution_arn
+  gateway = data.terraform_remote_state.endpoint.outputs.aws_apigatewayv2_api.execution_arn
 }
 
 resource "aws_iam_role" "lambda_pub_exec" {
@@ -140,5 +140,5 @@ resource "aws_lambda_permission" "apigw" {
 data "aws_region" "current" {}
 
 output "PUBLISHER_AWS_ENDPOINT" {
-  value = "https://${data.terraform_remote_state.endpoint.outputs.aws_api_gateway_rest_api.id}.execute-api.${data.aws_region.current.name}.amazonaws.com/dev/publisher"
+  value = "https://${data.terraform_remote_state.endpoint.outputs.aws_apigatewayv2_api.id}.execute-api.${data.aws_region.current.name}.amazonaws.com/publisher"
 }

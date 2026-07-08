@@ -1,3 +1,14 @@
+terraform {
+  required_version = ">= 1.0"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+}
+
 data "terraform_remote_state" "exp" {
   backend = "local"
 
@@ -10,8 +21,14 @@ locals {
   project_name  = data.terraform_remote_state.exp.outputs.project_name
   build_id      = data.terraform_remote_state.exp.outputs.build_id
   deployment_id = data.terraform_remote_state.exp.outputs.deployment_id
+  run_id        = data.terraform_remote_state.exp.outputs.run_id
   fns           = data.terraform_remote_state.exp.outputs.aws_fns
   fns_async     = data.terraform_remote_state.exp.outputs.aws_fns_async
+
+  lambda_fn_env_vars = {
+    for key, _ in data.terraform_remote_state.exp.outputs.aws_fns :
+    "LAMBDA_FN_${upper(key)}" => "${local.project_name}-${key}"
+  }
 }
 
 resource "aws_iam_role" "lambda_exec" {
@@ -56,6 +73,26 @@ resource "aws_iam_policy" "policy" {
       ],
       "Resource": "arn:aws:logs:*:*:*",
       "Effect": "Allow"
+    },
+    {
+      "Action": [
+        "cognito-idp:AdminInitiateAuth",
+        "cognito-idp:AdminCreateUser",
+        "cognito-idp:AdminSetUserPassword",
+        "cognito-idp:AdminConfirmSignUp",
+        "cognito-idp:SignUp",
+        "cognito-idp:InitiateAuth"
+      ],
+      "Effect": "Allow",
+      "Resource": "*"
+    },
+    {
+      "Sid": "LambdaDirectInvoke",
+      "Action": [
+        "lambda:InvokeFunction"
+      ],
+      "Effect": "Allow",
+      "Resource": "arn:aws:lambda:*:*:function:${local.project_name}-*"
     }
   ]
 }
@@ -67,12 +104,19 @@ resource "aws_iam_role_policy_attachment" "lambda_exec" {
   policy_arn = aws_iam_policy.policy.arn
 }
 
+resource "aws_cloudwatch_log_group" "lambda_logs" {
+  for_each          = local.fns
+  name              = "/aws/lambda/${local.run_id}/${each.key}"
+  retention_in_days = 7
+}
+
 resource "aws_lambda_function" "fn" {
   for_each      = local.fns
   function_name = "${local.project_name}-${each.key}"
 
-  s3_bucket = aws_s3_bucket_object.source[each.key].bucket
-  s3_key    = aws_s3_bucket_object.source[each.key].key
+  s3_bucket        = aws_s3_object.source[each.key].bucket
+  s3_key           = aws_s3_object.source[each.key].key
+  source_code_hash = try(filebase64sha256(each.value), null)
 
   handler     = var.handler
   runtime     = "nodejs18.x"
@@ -81,11 +125,29 @@ resource "aws_lambda_function" "fn" {
 
   role = aws_iam_role.lambda_exec.arn
 
-  environment {
-    variables = merge({
-      BEFAAS_DEPLOYMENT_ID = local.deployment_id
-    }, var.fn_env)
+  logging_config {
+    log_format = "Text"
+    log_group  = aws_cloudwatch_log_group.lambda_logs[each.key].name
   }
+
+  environment {
+    variables = merge(
+      {
+        BEFAAS_DEPLOYMENT_ID     = local.deployment_id
+        BEFAAS_FN_NAME           = each.key
+        COGNITO_USER_POOL_ID     = local.cognito_user_pool_id
+        COGNITO_CLIENT_ID        = local.cognito_client_id
+        BEFAAS_AUTH_GRANULARITY  = var.auth_granularity
+      },
+      local.lambda_fn_env_vars,
+      var.fn_env,
+      var.edge_public_key != "" ? { EDGE_PUBLIC_KEY = var.edge_public_key } : {},
+      var.jwt_private_key != "" ? { JWT_PRIVATE_KEY = var.jwt_private_key } : {},
+      var.jwt_public_key != "" ? { JWT_PUBLIC_KEY = var.jwt_public_key } : {}
+    )
+  }
+
+  depends_on = [aws_cloudwatch_log_group.lambda_logs]
 }
 
 resource "aws_lambda_permission" "apigw" {
@@ -95,7 +157,7 @@ resource "aws_lambda_permission" "apigw" {
   function_name = aws_lambda_function.fn[each.key].function_name
   principal     = "apigateway.amazonaws.com"
 
-  source_arn = "${data.terraform_remote_state.ep.outputs.aws_api_gateway_rest_api.execution_arn}/*/*"
+  source_arn = "${data.terraform_remote_state.ep.outputs.aws_apigatewayv2_api.execution_arn}/*/*"
 }
 
 resource "aws_sns_topic" "fn_topic" {

@@ -8,12 +8,12 @@
     "test": "prettier-standard --lint &&  terraform fmt -recursive -check infrastructure",
     "format": "prettier-standard --format",
     "local": "node -e \"http.createServer(require(process.argv[1]).googleHandler).listen(3000)\"",
-    "build": "./scripts/build.sh",
-    "deploy": "./scripts/deploy.sh",
-    "destroy": "./scripts/destroy.sh",
-    "logs": "./scripts/logs.sh",
-    "workload": "./scripts/workload.sh",
-    "analysis": "./scripts/analysis.sh"
+    "build": "scripts/build.sh",
+    "deploy": "scripts/deploy.sh",
+    "destroy": "scripts/destroy.sh",
+    "logs": "scripts/logs.sh",
+    "workload": "scripts/workload.sh",
+    "analysis": "scripts/analysis.sh"
   },
   "husky": {
     "hooks": {
@@ -27,10 +27,13 @@
   "author": "",
   "license": "Apache-2.0",
   "dependencies": {
-    "@befaas/lib": "^8.24.3",
-    "@koa/multer": "3.0.0",
-    "@google-cloud/pubsub": "^3.5.0",
+    "@aws-sdk/client-cloudwatch": "^3.940.0",
+    "@aws-sdk/client-cloudwatch-logs": "^3.962.0",
+    "@aws-sdk/client-cognito-identity-provider": "^3.940.0",
     "@azure/eventgrid": "^4.11.0",
+    "@befaas/lib": "^8.24.3",
+    "@google-cloud/pubsub": "^3.5.0",
+    "@koa/multer": "3.0.0",
     "card-validator": "^8.1.1",
     "jimp": "^0.22.7",
     "lodash": "^4.17.21",

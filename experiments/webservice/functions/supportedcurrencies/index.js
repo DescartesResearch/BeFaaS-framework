@@ -10,6 +10,8 @@ const { EUR_RATES } = require('../../currency/exchangerates')
  * Response: {"currencyCodes": ["EUR", "USD"]}
  *
  */
-module.exports = lib.serverless.rpcHandler(_ => {
+async function handle (event, ctx) {
   return { currencyCodes: Object.keys(EUR_RATES) }
-})
+}
+
+module.exports = handle

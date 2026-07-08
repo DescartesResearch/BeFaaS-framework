@@ -51,11 +51,13 @@ function applyRate (units, nanos, rate) {
  *
  * }
  */
-module.exports = lib.serverless.rpcHandler(event => {
+async function handle (event, ctx) {
   const { from, toCode } = event
   const rate = getRate(from.currencyCode, toCode)
   const [convUnits, convNanos] = applyRate(from.units, from.nanos, rate)
 
   // carry over fractions from units
   return { units: convUnits, nanos: convNanos, currencyCode: toCode }
-})
+}
+
+module.exports = handle

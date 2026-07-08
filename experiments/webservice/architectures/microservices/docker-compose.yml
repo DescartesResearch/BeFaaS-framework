@@ -1,0 +1,177 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - befaas-network
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  frontend-service:
+    build:
+      context: ./_build/frontend-service
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - NODE_ENV=development
+      - CLOUDMAP_NAMESPACE=local
+      - FRONTEND_SERVICE_URL=http://frontend-service:3000
+      - PRODUCT_SERVICE_URL=http://product-service:3001
+      - CART_SERVICE_URL=http://cart-service:3002
+      - ORDER_SERVICE_URL=http://order-service:3003
+      - CONTENT_SERVICE_URL=http://content-service:3004
+      - REDIS_URL=redis://redis:6379
+    networks:
+      - befaas-network
+    depends_on:
+      redis:
+        condition: service_healthy
+      product-service:
+        condition: service_healthy
+      cart-service:
+        condition: service_healthy
+      order-service:
+        condition: service_healthy
+      content-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  product-service:
+    build:
+      context: ./_build/product-service
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - NODE_ENV=development
+      - CLOUDMAP_NAMESPACE=local
+      - FRONTEND_SERVICE_URL=http://frontend-service:3000
+      - PRODUCT_SERVICE_URL=http://product-service:3001
+      - CART_SERVICE_URL=http://cart-service:3002
+      - ORDER_SERVICE_URL=http://order-service:3003
+      - CONTENT_SERVICE_URL=http://content-service:3004
+      - REDIS_URL=redis://redis:6379
+    networks:
+      - befaas-network
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  cart-service:
+    build:
+      context: ./_build/cart-service
+      dockerfile: Dockerfile
+    ports:
+      - "3002:3002"
+    environment:
+      - PORT=3002
+      - NODE_ENV=development
+      - CLOUDMAP_NAMESPACE=local
+      - FRONTEND_SERVICE_URL=http://frontend-service:3000
+      - PRODUCT_SERVICE_URL=http://product-service:3001
+      - CART_SERVICE_URL=http://cart-service:3002
+      - ORDER_SERVICE_URL=http://order-service:3003
+      - CONTENT_SERVICE_URL=http://content-service:3004
+      - REDIS_URL=redis://redis:6379
+    networks:
+      - befaas-network
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3002/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  order-service:
+    build:
+      context: ./_build/order-service
+      dockerfile: Dockerfile
+    ports:
+      - "3003:3003"
+    environment:
+      - PORT=3003
+      - NODE_ENV=development
+      - CLOUDMAP_NAMESPACE=local
+      - FRONTEND_SERVICE_URL=http://frontend-service:3000
+      - PRODUCT_SERVICE_URL=http://product-service:3001
+      - CART_SERVICE_URL=http://cart-service:3002
+      - ORDER_SERVICE_URL=http://order-service:3003
+      - CONTENT_SERVICE_URL=http://content-service:3004
+      - REDIS_URL=redis://redis:6379
+    networks:
+      - befaas-network
+    depends_on:
+      redis:
+        condition: service_healthy
+      cart-service:
+        condition: service_healthy
+      product-service:
+        condition: service_healthy
+      content-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3003/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  content-service:
+    build:
+      context: ./_build/content-service
+      dockerfile: Dockerfile
+    ports:
+      - "3004:3004"
+    environment:
+      - PORT=3004
+      - NODE_ENV=development
+      - CLOUDMAP_NAMESPACE=local
+      - FRONTEND_SERVICE_URL=http://frontend-service:3000
+      - PRODUCT_SERVICE_URL=http://product-service:3001
+      - CART_SERVICE_URL=http://cart-service:3002
+      - ORDER_SERVICE_URL=http://order-service:3003
+      - CONTENT_SERVICE_URL=http://content-service:3004
+      - REDIS_URL=redis://redis:6379
+    networks:
+      - befaas-network
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3004/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+networks:
+  befaas-network:
+    driver: bridge
+
+volumes:
+  redis-data:

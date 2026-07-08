@@ -19,7 +19,9 @@
           "checkout",
           "listproducts",
           "shipmentquote",
-          "emptycart"
+          "emptycart",
+          "login",
+          "register"
         ]
       },
       "checkout": {
@@ -78,6 +80,12 @@
         "provider": "aws"
       },
       "emptycart": {
+        "provider": "aws"
+      },
+      "login": {
+        "provider": "aws"
+      },
+      "register": {
         "provider": "aws"
       }
     }
