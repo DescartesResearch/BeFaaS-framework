@@ -1,7 +1,7 @@
 import json
 import re
 from pathlib import Path
-from typing import Generator, Optional, List
+from typing import Any, Generator, Optional, List
 from dataclasses import dataclass, field
 from urllib.parse import urlparse
 
